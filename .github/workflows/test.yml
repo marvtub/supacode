@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - main
+      - customize-worktree
+      - customize-worktree-smoketest
   pull_request:
     branches:
       - main
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,3 +32,28 @@ jobs:
       - run: make lint
       - run: make build-app
       - run: make test
+      # Temporary: package the freshly built Debug .app so we can
+      # download it from the Actions run on the fork and smoke-test
+      # the worktree-customization UX before opening an upstream
+      # PR. Drop this step (and the branch / workflow_dispatch
+      # triggers above) before the PR goes out.
+      - name: Locate Debug app
+        id: locate_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/Build/Products/Debug/supacode.app' -maxdepth 8 -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Could not find built supacode.app under DerivedData" >&2
+            exit 1
+          fi
+          STAGE="$(mktemp -d)"
+          cp -R "$APP_PATH" "$STAGE/supacode.app"
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+      - name: Upload Debug app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supacode-debug-app-${{ github.sha }}
+          path: ${{ steps.locate_app.outputs.stage }}/supacode.app
+          if-no-files-found: error
+          retention-days: 7

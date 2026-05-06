@@ -28,7 +28,11 @@ runs:
         version: 2026.3.0
         cache: true
     - name: Authenticate with Tuist
-      if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      # Skip on forks: tuist auth login fails when the repository
+      # isn't linked in the Tuist dashboard, and the fork doesn't
+      # need cache warming. This guard belongs to the temp fork-CI
+      # commit and gets reverted before any upstream PR.
+      if: ${{ github.repository == 'supabitapp/supacode' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       shell: bash
       run: mise exec -- tuist auth login
     - name: Xcode cache key
